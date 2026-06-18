@@ -171,6 +171,36 @@ Open:
 http://127.0.0.1:5173
 ```
 
+## One-Click Windows Launcher
+
+For normal daily use on Windows, double-click:
+
+```text
+Run-DotNet-Mastery.cmd
+```
+
+The launcher will:
+
+- Start Docker Desktop if it can find it.
+- Run `docker compose up -d` for PostgreSQL.
+- Install frontend packages with `npm install` if `client/node_modules` is missing.
+- Start the ASP.NET Core API on `http://localhost:5148`.
+- Start the React/Vite frontend on `http://127.0.0.1:5173`.
+- Open the web app in a separate Google Chrome app window.
+- Stop the API, frontend, and Docker Compose stack when that Chrome app window closes.
+
+Launcher logs are written to:
+
+```text
+.launcher/logs/
+```
+
+To rebuild the launcher executable:
+
+```powershell
+dotnet publish launcher -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=false -o builds/windows
+```
+
 ## Automated Tests
 
 Backend runner tests:

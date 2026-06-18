@@ -4,6 +4,7 @@ node_modules/
 dist/
 build/
 builds/
+.launcher/
 .env
 .env.*
 !.env.example
