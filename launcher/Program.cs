@@ -52,11 +52,12 @@ try
     EnsureDocker(root);
     EnsureNodePackages(root);
 
+    var backendLog = Path.Combine(logDir, "backend.log");
     var backend = StartLoggedProcess(
         "dotnet",
         "run --no-launch-profile --project server",
         root,
-        Path.Combine(logDir, "backend.log"),
+        backendLog,
         environment: new Dictionary<string, string>
         {
             ["ASPNETCORE_URLS"] = BackendUrl,
@@ -64,7 +65,7 @@ try
         });
     startedProcesses.Add(backend);
     await WaitForUrl($"{BackendUrl}/api/health", "ASP.NET Core API");
-    await WaitForDemoLogin();
+    await EnsureDemoLoginReady(root, backendLog);
 
     var frontend = StartLoggedProcess(
         NpmCommand(),
@@ -303,11 +304,40 @@ static async Task WaitForUrl(string url, string name)
     throw new TimeoutException($"{name} did not become ready at {url}.");
 }
 
-static async Task WaitForDemoLogin()
+static async Task EnsureDemoLoginReady(string root, string backendLog)
+{
+    if (await WaitForDemoLogin(TimeSpan.FromSeconds(25)))
+    {
+        return;
+    }
+
+    if (LogContains(backendLog, "password authentication failed"))
+    {
+        Console.WriteLine();
+        Console.WriteLine("Detected an old PostgreSQL password for this local database. Repairing it now...");
+        var repaired = RunCommandWithArgs(
+            "docker",
+            ["compose", "exec", "-T", "postgres", "psql", "-U", PostgresUser, "-d", PostgresDb, "-c", $"ALTER USER {PostgresUser} WITH PASSWORD '{PostgresPassword}';"],
+            root,
+            TimeSpan.FromSeconds(45),
+            allowFailure: true) == 0;
+
+        if (repaired && await WaitForDemoLogin(TimeSpan.FromSeconds(45)))
+        {
+            return;
+        }
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Demo login was not ready yet. The app will still open, but login may fail until the database is fixed.");
+    Console.WriteLine($"Backend log: {backendLog}");
+}
+
+static async Task<bool> WaitForDemoLogin(TimeSpan timeout)
 {
     Console.Write("Waiting for seeded demo login");
     using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-    var deadline = DateTimeOffset.UtcNow.AddMinutes(2);
+    var deadline = DateTimeOffset.UtcNow.Add(timeout);
 
     while (DateTimeOffset.UtcNow < deadline)
     {
@@ -321,7 +351,7 @@ static async Task WaitForDemoLogin()
             if (response.IsSuccessStatusCode)
             {
                 Console.WriteLine(" ready.");
-                return;
+                return true;
             }
         }
         catch
@@ -333,7 +363,7 @@ static async Task WaitForDemoLogin()
         await Task.Delay(1000);
     }
 
-    throw new TimeoutException("The API started, but demo login did not become ready. Check .launcher/logs/backend.log for database errors.");
+    return false;
 }
 
 static Process? StartChrome(string root, string url)
@@ -428,6 +458,56 @@ static int RunCommand(string fileName, string arguments, string workingDirectory
     catch when (allowFailure)
     {
         return -1;
+    }
+}
+
+static int RunCommandWithArgs(string fileName, IReadOnlyList<string> arguments, string workingDirectory, TimeSpan timeout, bool allowFailure)
+{
+    try
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        foreach (var argument in arguments)
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        process.Start();
+        if (!process.WaitForExit((int)timeout.TotalMilliseconds))
+        {
+            process.Kill(entireProcessTree: true);
+            return -1;
+        }
+
+        return process.ExitCode;
+    }
+    catch when (allowFailure)
+    {
+        return -1;
+    }
+}
+
+static bool LogContains(string logPath, string value)
+{
+    try
+    {
+        return File.Exists(logPath)
+            && File.ReadAllText(logPath).Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+    catch
+    {
+        return false;
     }
 }
 
