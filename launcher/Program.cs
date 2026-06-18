@@ -1,9 +1,15 @@
 using System.Diagnostics;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Text;
 
 const string BackendUrl = "http://localhost:5148";
 const string FrontendUrl = "http://127.0.0.1:5173";
+const string PostgresHost = "localhost";
+const string PostgresPort = "5432";
+const string PostgresDb = "dotnet_mastery";
+const string PostgresUser = "dotnet_mastery";
+const string PostgresPassword = "12345";
 
 var root = FindProjectRoot();
 var launcherDir = Path.Combine(root, ".launcher");
@@ -42,6 +48,7 @@ try
 {
     EnsureCommand("dotnet", "Install .NET SDK 10+ and make sure dotnet is on PATH.");
     EnsureCommand(NpmCommand(), "Install Node.js 22+ and make sure npm is on PATH.");
+    StopProcessesOnPorts(root, [5148, 5173]);
     EnsureDocker(root);
     EnsureNodePackages(root);
 
@@ -53,10 +60,11 @@ try
         environment: new Dictionary<string, string>
         {
             ["ASPNETCORE_URLS"] = BackendUrl,
-            ["DOTNET_MASTERY_CONNECTION"] = "Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=dotnet_mastery_dev"
+            ["DOTNET_MASTERY_CONNECTION"] = BuildConnectionString()
         });
     startedProcesses.Add(backend);
     await WaitForUrl($"{BackendUrl}/api/health", "ASP.NET Core API");
+    await WaitForDemoLogin();
 
     var frontend = StartLoggedProcess(
         NpmCommand(),
@@ -166,6 +174,29 @@ static void EnsureDocker(string workingDirectory)
     }
 }
 
+static void StopProcessesOnPorts(string workingDirectory, int[] ports)
+{
+    if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    {
+        return;
+    }
+
+    var portList = string.Join(",", ports);
+    var script =
+        $"$ports=@({portList}); " +
+        "Get-NetTCPConnection -State Listen -LocalPort $ports -ErrorAction SilentlyContinue | " +
+        "Select-Object -ExpandProperty OwningProcess -Unique | " +
+        "Where-Object { $_ -and $_ -ne $PID } | " +
+        "ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }";
+
+    RunCommand("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"", workingDirectory, TimeSpan.FromSeconds(20), allowFailure: true);
+}
+
+static string BuildConnectionString()
+{
+    return $"Host={PostgresHost};Port={PostgresPort};Database={PostgresDb};Username={PostgresUser};Password={PostgresPassword}";
+}
+
 static void TryStartDockerDesktop()
 {
     var candidates = new[]
@@ -270,6 +301,39 @@ static async Task WaitForUrl(string url, string name)
     }
 
     throw new TimeoutException($"{name} did not become ready at {url}.");
+}
+
+static async Task WaitForDemoLogin()
+{
+    Console.Write("Waiting for seeded demo login");
+    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+    var deadline = DateTimeOffset.UtcNow.AddMinutes(2);
+
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        try
+        {
+            using var payload = new StringContent(
+                "{\"email\":\"student@dotnetmastery.local\",\"password\":\"Student123!\"}",
+                Encoding.UTF8,
+                "application/json");
+            using var response = await client.PostAsync($"{BackendUrl}/api/auth/login", payload);
+            if (response.IsSuccessStatusCode)
+            {
+                Console.WriteLine(" ready.");
+                return;
+            }
+        }
+        catch
+        {
+            // Database migrations/seeding may still be running.
+        }
+
+        Console.Write(".");
+        await Task.Delay(1000);
+    }
+
+    throw new TimeoutException("The API started, but demo login did not become ready. Check .launcher/logs/backend.log for database errors.");
 }
 
 static Process? StartChrome(string root, string url)

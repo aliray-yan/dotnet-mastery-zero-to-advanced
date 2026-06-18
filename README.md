@@ -95,13 +95,13 @@ docker compose up -d
 The default connection string is:
 
 ```text
-Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=dotnet_mastery_dev
+Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345
 ```
 
 You can override it with:
 
 ```bash
-DOTNET_MASTERY_CONNECTION="Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=dotnet_mastery_dev"
+DOTNET_MASTERY_CONNECTION="Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345"
 ```
 
 ## EF Core Migration Commands
@@ -184,6 +184,7 @@ The launcher will:
 - Start Docker Desktop if it can find it.
 - Run `docker compose up -d` for PostgreSQL.
 - Install frontend packages with `npm install` if `client/node_modules` is missing.
+- Clear old processes listening on this app's ports `5148` and `5173`.
 - Start the ASP.NET Core API on `http://localhost:5148`.
 - Start the React/Vite frontend on `http://127.0.0.1:5173`.
 - Open the web app in a separate Google Chrome app window.
@@ -194,6 +195,8 @@ Launcher logs are written to:
 ```text
 .launcher/logs/
 ```
+
+Docker Desktop will show this app's database container as `dotnet-mastery-postgres`. That is separate from older containers such as `rag-ai-mastery`; the launcher only manages this project's Docker Compose stack.
 
 To rebuild the launcher executable:
 
@@ -337,7 +340,7 @@ Set production secrets through environment variables:
 ## Troubleshooting
 
 - API cannot connect to database: run `docker compose up -d` and verify port `5432` is free.
-- Local PostgreSQL uses a different password: set `DOTNET_MASTERY_CONNECTION`, for example `Host=localhost;Port=5432;Database=dotnet_mastery;Username=postgres;Password=12345`.
+- Local PostgreSQL uses a different password: set `DOTNET_MASTERY_CONNECTION`, for example `Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345`.
 - Frontend login fails: confirm backend is running and `VITE_API_URL` points to the API port.
 - Practice grader says output does not match: compare line order, spelling, punctuation, and extra text. The generated tasks intentionally use exact output checks.
 - Android grader cannot run a snippet: use literal `Console.WriteLine("text");` statements in the APK, or use the web app for full C# compilation.
