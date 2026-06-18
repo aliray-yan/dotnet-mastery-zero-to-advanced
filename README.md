@@ -95,13 +95,13 @@ docker compose up -d
 The default connection string is:
 
 ```text
-Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345
+Host=127.0.0.1;Port=55432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345
 ```
 
 You can override it with:
 
 ```bash
-DOTNET_MASTERY_CONNECTION="Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345"
+DOTNET_MASTERY_CONNECTION="Host=127.0.0.1;Port=55432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345"
 ```
 
 ## EF Core Migration Commands
@@ -173,11 +173,13 @@ http://127.0.0.1:5173
 
 ## One-Click Windows Launcher
 
-For normal daily use on Windows, double-click:
+For normal daily use on Windows, double-click the `.NET Mastery` desktop shortcut or run:
 
 ```text
-Run-DotNet-Mastery.cmd
+builds/windows/DotNetMasteryLauncher.exe
 ```
+
+Docker is used by the launcher only to start a private PostgreSQL database automatically. If you run the backend manually against an already-installed local PostgreSQL instance, Docker is not required.
 
 The launcher will:
 
@@ -339,8 +341,8 @@ Set production secrets through environment variables:
 
 ## Troubleshooting
 
-- API cannot connect to database: run `docker compose up -d` and verify port `5432` is free.
-- Local PostgreSQL uses a different password: set `DOTNET_MASTERY_CONNECTION`, for example `Host=localhost;Port=5432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345`.
+- API cannot connect to database: run `docker compose up -d` and verify port `55432` is free.
+- Local PostgreSQL uses a different password: set `DOTNET_MASTERY_CONNECTION`, for example `Host=127.0.0.1;Port=55432;Database=dotnet_mastery;Username=dotnet_mastery;Password=12345`.
 - Frontend login fails: confirm backend is running and `VITE_API_URL` points to the API port.
 - Practice grader says output does not match: compare line order, spelling, punctuation, and extra text. The generated tasks intentionally use exact output checks.
 - Android grader cannot run a snippet: use literal `Console.WriteLine("text");` statements in the APK, or use the web app for full C# compilation.

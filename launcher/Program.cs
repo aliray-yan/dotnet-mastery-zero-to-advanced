@@ -5,8 +5,8 @@ using System.Text;
 
 const string BackendUrl = "http://localhost:5148";
 const string FrontendUrl = "http://127.0.0.1:5173";
-const string PostgresHost = "localhost";
-const string PostgresPort = "5432";
+const string PostgresHost = "127.0.0.1";
+const string PostgresPort = "55432";
 const string PostgresDb = "dotnet_mastery";
 const string PostgresUser = "dotnet_mastery";
 const string PostgresPassword = "12345";
@@ -132,6 +132,7 @@ void Cleanup()
         }
     }
 
+    StopProcessesOnPorts(root, [5148, 5173]);
     RunCommand("docker", "compose down", root, TimeSpan.FromSeconds(45), allowFailure: true);
     Console.WriteLine("Done.");
 }
@@ -172,6 +173,13 @@ static void EnsureDocker(string workingDirectory)
     if (code != 0)
     {
         throw new InvalidOperationException("Docker Compose failed to start PostgreSQL.");
+    }
+
+    Console.Write("Waiting for PostgreSQL");
+    var postgresReady = WaitForCommand("docker", $"compose exec -T postgres pg_isready -U {PostgresUser} -d {PostgresDb}", workingDirectory, TimeSpan.FromMinutes(2), showProgress: true);
+    if (!postgresReady)
+    {
+        throw new InvalidOperationException("PostgreSQL did not become ready. Open Docker Desktop and check the dotnet-mastery-postgres container.");
     }
 }
 
@@ -306,7 +314,7 @@ static async Task WaitForUrl(string url, string name)
 
 static async Task EnsureDemoLoginReady(string root, string backendLog)
 {
-    if (await WaitForDemoLogin(TimeSpan.FromSeconds(25)))
+    if (await WaitForDemoLogin(TimeSpan.FromSeconds(90)))
     {
         return;
     }
@@ -412,16 +420,18 @@ static void EnsureCommand(string fileName, string installMessage)
     }
 }
 
-static bool WaitForCommand(string fileName, string arguments, string workingDirectory, TimeSpan timeout)
+static bool WaitForCommand(string fileName, string arguments, string workingDirectory, TimeSpan timeout, bool showProgress = false)
 {
     var deadline = DateTimeOffset.UtcNow.Add(timeout);
     while (DateTimeOffset.UtcNow < deadline)
     {
         if (RunCommand(fileName, arguments, workingDirectory, TimeSpan.FromSeconds(10), allowFailure: true) == 0)
         {
+            if (showProgress) Console.WriteLine(" ready.");
             return true;
         }
 
+        if (showProgress) Console.Write(".");
         Thread.Sleep(3000);
     }
 

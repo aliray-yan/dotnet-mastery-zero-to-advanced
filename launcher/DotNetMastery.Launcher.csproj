@@ -6,5 +6,6 @@
     <Nullable>enable</Nullable>
     <AssemblyName>DotNetMasteryLauncher</AssemblyName>
     <RootNamespace>DotNetMastery.Launcher</RootNamespace>
+    <ApplicationIcon>Assets\dotnet-mastery.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>
